@@ -7,10 +7,10 @@ class Account {
     }
 
     public function create($username, $password, $fname, $lname, $role, $vendor_id = null) {
-        $sql = "INSERT INTO accounts (username, password, firstname, lastname, role, Vendor_ID)
+        $insert = "INSERT INTO accounts (username, password, firstname, lastname, role, Vendor_ID)
                 VALUES (:u, :p, :f, :l, :r, :vid)";
-        $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([
+        $prep = $this->conn->prepare($insert);
+        return $prep->execute([
             "u" => $username, "p" => $password,
             "f" => $fname, "l" => $lname,
             "r" => $role, "vid" => $vendor_id
@@ -18,10 +18,10 @@ class Account {
     }
 
     public function login($username, $password) {
-        $sql = "SELECT * FROM accounts WHERE username = :u";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute(["u" => $username]);
-        $row = $stmt->fetch();
+        $insert = "SELECT * FROM accounts WHERE username = :u";
+        $prep = $this->conn->prepare($insert);
+        $prep->execute(["u" => $username]);
+        $row = $prep->fetch();
 
         if($row && $password == $row['password']){
             return $row;

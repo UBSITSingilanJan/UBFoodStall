@@ -7,10 +7,10 @@ class Vendor {
     }
 
     public function create($fname, $lname, $contact, $email) {
-        $sql = "INSERT INTO vendor (First_Name, Last_Name, Contact, Email)
+        $select = "INSERT INTO vendor (First_Name, Last_Name, Contact, Email)
                 VALUES (:fname, :lname, :contact, :email)";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute([
+        $prep = $this->conn->prepare($select);
+        $prep->execute([
             "fname" => $fname, "lname" => $lname,
             "contact" => $contact, "email" => $email
         ]);
@@ -18,22 +18,22 @@ class Vendor {
     }
 
     public function getAll() {
-        $stmt = $this->conn->prepare("SELECT * FROM vendor ORDER BY Vendor_ID DESC");
-        $stmt->execute();
-        return $stmt->fetchAll();
+        $prep = $this->conn->prepare("SELECT * FROM vendor ORDER BY Vendor_ID DESC");
+        $prep->execute();
+        return $prep->fetchAll();
     }
 
     public function getById($id) {
-        $stmt = $this->conn->prepare("SELECT * FROM vendor WHERE Vendor_ID = :id");
-        $stmt->execute(["id" => $id]);
-        return $stmt->fetch();
+        $prep = $this->conn->prepare("SELECT * FROM vendor WHERE Vendor_ID = :id");
+        $prep->execute(["id" => $id]);
+        return $prep->fetch();
     }
 
     public function login($contact, $email) {
-        $sql = "SELECT * FROM vendor WHERE Contact = :c AND Email = :e";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute(["c" => $contact, "e" => $email]);
-        return $stmt->fetch();
+        $select = "SELECT * FROM vendor WHERE Contact = :c AND Email = :e";
+        $prep = $this->conn->prepare($select);
+        $prep->execute(["c" => $contact, "e" => $email]);
+        return $prep->fetch();
     }
 }
 ?>

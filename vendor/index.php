@@ -1,6 +1,7 @@
 <?php
 	require_once "../dbconn.php";
 	require_once "../classes/Vendor.php";
+	require_once "../classes/stall.php"; 
 	session_start();
 
 	if(!isset($_SESSION["ROLE"]) || $_SESSION["ROLE"] != "vendor"){
@@ -11,6 +12,9 @@
 
 	$vendorObj = new Vendor($pdo);
 	$vendor = $vendorObj->getById($_SESSION["Vendor_ID"]);
+
+	$stallObj = new Stall($pdo);
+	$stall = $stallObj->getByVendor($_SESSION["Vendor_ID"]);
 ?>
 
 <!DOCTYPE html>
@@ -21,7 +25,8 @@
 </head>
 <body>
 	<h1>Welcome Vendor <?= htmlspecialchars($_SESSION['FNAME']) ?></h1>
-	<a href="logout.php">Logout</a>
+		<a href="stall.php">My Stall</a> |
+		<a href="logout.php">Logout</a>
 	<br><br><hr>
 
 	<h3>My Information</h3>
@@ -47,5 +52,24 @@
             <td><?= htmlspecialchars($vendor['Email']) ?></td>
         </tr>
 	</table>
+		<h3>My Stall</h3>
+		<?php if($stall): ?>
+			<table border="1" cellpadding="8">
+				<tr>
+					<th>Stall Name</th>
+					<td><?= htmlspecialchars($stall['StallName']) ?></td>
+				</tr>
+				<tr>
+					<th>Location</th>
+					<td><?= htmlspecialchars($stall['Location']) ?></td>
+				</tr>
+				<tr>
+					<th>Status</th>
+					<td><?= htmlspecialchars($stall['Status']) ?></td>
+				</tr>
+			</table>
+		<?php else: ?>
+			<p>No stall yet. <a href="stall.php">Create your stall</a></p>
+		<?php endif; ?>
 </body>
 </html>

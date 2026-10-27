@@ -55,10 +55,10 @@
                 <td><input type="text" name="lname" placeholder="Last Name" required></td>
             </tr>
 			<tr>
-                <td><input type="text" name="contact" placeholder="Contact (username)" required></td>
+                <td><input type="text" name="contact" placeholder="Contact" required></td>
             </tr>
 			<tr>
-                <td><input type="email" name="email" placeholder="Email (password)" required></td>
+                <td><input type="email" name="email" placeholder="Email" required></td>
             </tr>
 			<tr>
 				<td>
