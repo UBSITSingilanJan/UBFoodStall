@@ -14,7 +14,7 @@
 			$_SESSION["FNAME"] = "Admin";
 			$_SESSION["LNAME"] = "Admin";
 
-			header("Location: admin/index.php");
+			header("Location: ../admin/index.php");
 			exit();
 		}
 
