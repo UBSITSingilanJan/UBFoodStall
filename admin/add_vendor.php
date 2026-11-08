@@ -1,5 +1,5 @@
 <?php
-	require_once "../dbconn.php";
+	require_once "../vendor/dbconn.php";
 	require_once "../classes/vendor.php";
 
 	$conn = new Vendor($pdo);
