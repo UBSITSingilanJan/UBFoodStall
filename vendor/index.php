@@ -1,227 +1,146 @@
 <?php
-session_start();
-require_once "../dbconn.php";
+	require_once "../includes/helpers.php";
+	require_once "../dbconn.php";
+	require_once "../classes/vendor.php";
+	require_once "../classes/product.php";
+	require_once "../classes/inventoryanalyzer.php";
 
-class Database {
-    public function connect() {
-        return true;
-    }
-}
+	require_role("vendor");
 
-class InventoryAnalyzer {
-    private $inventory;
+	$vendor = new Vendor($pdo);
+	$products = new Product($pdo);
 
-    public function __construct($inventoryData) {
-        $this->inventory = $inventoryData;
-    }
+	$stall = $vendor -> find_stall($_SESSION["Vendor_ID"]);
+	if(!$stall){
+		session_destroy();
+		header("Location: ../index.php");
+		exit;
+	}
+	$stall_id = $stall['Stall_ID'];
+	$message = "";
+	$type = "success";
 
-    public function getAveragePrice() {
-        if (count($this->inventory) == 0) return 0;
-        $total = 0;
-        foreach ($this->inventory as $item) {
-            $total += $item['price'];
-        }
-        return $total / count($this->inventory);
-    }
+	if($_SERVER["REQUEST_METHOD"] === "POST"){
+		if(isset($_POST['add_product'])){
+			$name = trim($_POST['item_name']);
+			$price = (float) $_POST['item_price'];
+			$stock = (int) $_POST['item_stock'];
 
-    public function getMinStock() {
-        if (count($this->inventory) == 0) return 0;
-        $stocks = array_column($this->inventory, 'stock');
-        return min($stocks);
-    }
+			if($name === "" || $price <= 0 || $stock < 0){
+				$message = "Please enter a name, a price above 0 and a stock of 0 or more.";
+				$type = "danger";
+			}
+			else{
+				$products -> insert_data($stall_id, $name, $price, $stock);
+				$message = "Product added.";
+			}
+		}
+		elseif(isset($_POST['update_stock'])){
+			$products -> update_stock((int) $_POST['Product_ID'], $stall_id, max(0, (int) $_POST['stock']));
+			$message = "Stock updated.";
+		}
+		elseif(isset($_POST['delete_product'])){
+			$products -> delete_data((int) $_POST['Product_ID'], $stall_id);
+			$message = "Product deleted.";
+		}
+	}
 
-    public function getMaxStock() {
-        if (count($this->inventory) == 0) return 0;
-        $stocks = array_column($this->inventory, 'stock');
-        return max($stocks);
-    }
+	$inventory = $products -> fetch_by_stall($stall_id);
+	$analyzer = new InventoryAnalyzer($inventory);
+	$alerts = $analyzer -> getLowStockAlerts();
 
-    public function getLowStockAlerts($threshold = 10) {
-        $alerts = [];
-        foreach ($this->inventory as $item) {
-            if ($item['stock'] < $threshold) {
-                $alerts[] = "ALERT: " . $item['item'] . " is running low! Only " . $item['stock'] . " left.";
-            }
-        }
-        return $alerts;
-    }
-}
-
-class Dashboard {
-    private $pdo;
-
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
-
-    // get the stall of the logged in vendor
-    public function getStall($vendorId) {
-        $prep = $this->pdo->prepare("SELECT Stall_ID, stallname, status FROM food_stall WHERE Vendor_ID = :Vendor_ID");
-        $prep->execute([":Vendor_ID" => $vendorId]);
-        return $prep->fetch();
-    }
-
-    // count of all products, available and not available
-    public function countProducts($stallId) {
-        $prep = $this->pdo->prepare("
-            SELECT
-                COUNT(*) AS total_products,
-                COALESCE(SUM(status = 'Available'), 0) AS available_products,
-                COALESCE(SUM(status = 'Not Available'), 0) AS unavailable_products
-            FROM product
-            WHERE Stall_ID = :Stall_ID
-        ");
-        $prep->execute([":Stall_ID" => $stallId]);
-        return $prep->fetch();
-    }
-
-    // count of reviews, customers who rated, average rating, and how many gave each star
-    public function summarizeReviews($stallId) {
-        $prep = $this->pdo->prepare("
-            SELECT
-                COUNT(*) AS total_reviews,
-                COUNT(DISTINCT Customer_ID) AS total_customers,
-                COALESCE(ROUND(AVG(rating), 1), 0) AS average_rating,
-                COALESCE(SUM(rating = 5), 0) AS star_5,
-                COALESCE(SUM(rating = 4), 0) AS star_4,
-                COALESCE(SUM(rating = 3), 0) AS star_3,
-                COALESCE(SUM(rating = 2), 0) AS star_2,
-                COALESCE(SUM(rating = 1), 0) AS star_1
-            FROM review
-            WHERE Stall_ID = :Stall_ID
-        ");
-        $prep->execute([":Stall_ID" => $stallId]);
-        return $prep->fetch();
-    }
-}
-
-if (!isset($_SESSION['inventory_data'])) {
-    $_SESSION['inventory_data'] = [
-        ["item" => "Pork Siomai", "price" => 25.00, "stock" => 50]
-    ];
-}
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $itemName = $_POST["item_name"] ?? "";
-    $itemPrice = $_POST["item_price"] ?? 0;
-    $itemStock = $_POST["item_stock"] ?? 0;
-
-    if ($itemName != "" && $itemPrice > 0) {
-        $_SESSION['inventory_data'][] = [
-            "item" => $itemName,
-            "price" => (float)$itemPrice,
-            "stock" => (int)$itemStock
-        ];
-    }
-}
-
-$database = new Database();
-$conn = $database->connect();
-$analyzer = new InventoryAnalyzer($_SESSION['inventory_data']);
-$sales_report = ["Today" => 1500, "This Week" => 8500];
-
-$vendorName = isset($_SESSION["FNAME"]) ? $_SESSION["FNAME"] : "Vendor";
-
-// ---------- STALL DASHBOARD (products, reviews, ratings) ----------
-$dashboard = new Dashboard($pdo);
-
-$products = ["total_products" => 0, "available_products" => 0, "unavailable_products" => 0];
-$reviews = ["total_reviews" => 0, "total_customers" => 0, "average_rating" => 0, "star_5" => 0, "star_4" => 0, "star_3" => 0, "star_2" => 0, "star_1" => 0];
-$stall = false;
-
-if (isset($_SESSION["Vendor_ID"])) {
-    $stall = $dashboard->getStall($_SESSION["Vendor_ID"]);
-}
-
-if ($stall) {
-    $products = $dashboard->countProducts($stall["Stall_ID"]);
-    $reviews = $dashboard->summarizeReviews($stall["Stall_ID"]);
-}
+	$base = "../";
+	$page_title = "Vendor";
+	$show_logout = true;
+	require "../includes/header.php";
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title></title>
-</head>
-<body>
-    <h1>Welcome <?php echo htmlspecialchars($vendorName); ?></h1>
-    <a href="logout.php">Logout</a> |
-    <a href="reviews.php">View Customer Reviews</a>
-    
-    <hr>
+<h1 class="h3 mb-1">Welcome, <?php echo e($_SESSION["FNAME"]); ?>!</h1>
+<p class="text-muted"><?php echo e($stall['stallname']); ?> · <?php echo e($stall['location']); ?> · <span class="badge text-bg-secondary"><?php echo e($stall['status']); ?></span></p>
 
-    <h2>Data Analysis Dashboard</h2>
-    <form method="POST">
-        <label>Item Name:</label>
-        <input type="text" name="item_name" required>
-        <label>Price:</label>
-        <input type="number" step="0.01" name="item_price" required>
-        <label>Stock:</label>
-        <input type="number" name="item_stock" required>
-        <button type="submit">Add Data</button>
-    </form>
-    <br>
+<?php alert($message, $type); ?>
 
-    <h3>Aggregations</h3>
-    <p>Average Item Price: <?php echo number_format($analyzer->getAveragePrice(), 2); ?></p>
-    <p>Minimum Stock Level: <?php echo $analyzer->getMinStock(); ?></p>
-    <p>Maximum Stock Level: <?php echo $analyzer->getMaxStock(); ?></p>
+<div class="row g-3 mb-4">
+	<div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body">
+		<div class="text-muted small">Average item price</div>
+		<div class="fs-4 fw-bold">₱<?php echo number_format($analyzer -> getAveragePrice(), 2); ?></div>
+	</div></div></div>
+	<div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body">
+		<div class="text-muted small">Lowest stock</div>
+		<div class="fs-4 fw-bold"><?php echo $analyzer -> getMinStock(); ?></div>
+	</div></div></div>
+	<div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body">
+		<div class="text-muted small">Highest stock</div>
+		<div class="fs-4 fw-bold"><?php echo $analyzer -> getMaxStock(); ?></div>
+	</div></div></div>
+	<div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body">
+		<div class="text-muted small">Inventory value</div>
+		<div class="fs-4 fw-bold">₱<?php echo number_format($analyzer -> getInventoryValue(), 2); ?></div>
+	</div></div></div>
+</div>
 
-    <p>Total Products: <?php echo $products["total_products"]; ?></p>
-    <p>Available Products: <?php echo $products["available_products"]; ?></p>
-    <p>Not Available Products: <?php echo $products["unavailable_products"]; ?></p>
-    <p>Total Reviews: <?php echo $reviews["total_reviews"]; ?></p>
-    <p>Customers Who Rated: <?php echo $reviews["total_customers"]; ?></p>
-    <p>Average Rating: <?php echo $reviews["average_rating"]; ?> / 5</p>
+<h2 class="h5">Alerts</h2>
+<?php if(count($alerts) > 0): ?>
+	<?php foreach($alerts as $a): ?>
+		<div class="alert alert-warning py-2"><?php echo e($a); ?></div>
+	<?php endforeach; ?>
+<?php else: ?>
+	<div class="alert alert-success py-2">All items are sufficiently stocked.</div>
+<?php endif; ?>
 
-    <table border="1">
-        <tr>
-            <th>Stars</th>
-            <th>Customers</th>
-        </tr>
-        <?php for ($star = 5; $star >= 1; $star--): ?>
-        <tr>
-            <td><?php echo $star; ?> star</td>
-            <td><?php echo $reviews["star_" . $star]; ?></td>
-        </tr>
-        <?php endfor; ?>
-    </table>
+<div class="card shadow-sm my-4">
+	<div class="card-body">
+		<h2 class="h5">Add a product</h2>
+		<form method="post" class="row g-3 align-items-end">
+			<div class="col-md-5">
+				<label class="form-label">Item name</label>
+				<input class="form-control" type="text" name="item_name" required>
+			</div>
+			<div class="col-md-3">
+				<label class="form-label">Price (₱)</label>
+				<input class="form-control" type="number" step="0.01" min="0.01" name="item_price" required>
+			</div>
+			<div class="col-md-2">
+				<label class="form-label">Stock</label>
+				<input class="form-control" type="number" min="0" name="item_stock" required>
+			</div>
+			<div class="col-md-2">
+				<button class="btn btn-ub w-100" name="add_product">Add</button>
+			</div>
+		</form>
+	</div>
+</div>
 
-    <h3>Reports</h3>
-    <ul>
-        <?php foreach ($sales_report as $period => $amount): ?>
-            <li><?php echo $period; ?>: <?php echo number_format($amount, 2); ?></li>
-        <?php endforeach; ?>
-    </ul>
-
-    <h3>Alerts</h3>
-    <?php
-    $alerts = $analyzer->getLowStockAlerts();
-    if (count($alerts) > 0) {
-        foreach ($alerts as $alert) {
-            echo "<p>" . $alert . "</p>";
-        }
-    } else {
-        echo "<p>All items are sufficiently stocked.</p>";
-    }
-    ?>
-
-    <h3>Current Inventory Data</h3>
-    <table border="1">
-        <tr>
-            <th>Item</th>
-            <th>Price</th>
-            <th>Stock</th>
-        </tr>
-        <?php foreach ($_SESSION['inventory_data'] as $item): ?>
-        <tr>
-            <td><?php echo $item['item']; ?></td>
-            <td><?php echo $item['price']; ?></td>
-            <td><?php echo $item['stock']; ?></td>
-        </tr>
-        <?php endforeach; ?>
-    </table>
-</body>
-</html>
+<h2 class="h5">Current inventory</h2>
+<div class="table-responsive">
+	<table class="table table-striped bg-white align-middle">
+		<thead class="table-light">
+			<tr><th>Item</th><th class="text-end">Price</th><th>Status</th><th style="width:260px">Stock</th><th></th></tr>
+		</thead>
+		<tbody>
+			<?php foreach($inventory as $item): ?>
+				<tr>
+					<td><?php echo e($item['productname']); ?></td>
+					<td class="text-end">₱<?php echo number_format($item['price'], 2); ?></td>
+					<td><span class="badge text-bg-<?php echo $item['status'] === 'Available' ? 'success' : 'secondary'; ?>"><?php echo e($item['status']); ?></span></td>
+					<td>
+						<form method="post" class="d-flex gap-2">
+							<input type="hidden" name="Product_ID" value="<?php echo e($item['Product_ID']); ?>">
+							<input class="form-control form-control-sm" type="number" min="0" name="stock" value="<?php echo e($item['stock']); ?>">
+							<button class="btn btn-sm btn-outline-secondary" name="update_stock">Save</button>
+						</form>
+					</td>
+					<td>
+						<form method="post">
+							<input type="hidden" name="Product_ID" value="<?php echo e($item['Product_ID']); ?>">
+							<button class="btn btn-sm btn-outline-danger" name="delete_product">Delete</button>
+						</form>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			<?php if(count($inventory) == 0): ?>
+				<tr><td colspan="5" class="text-center text-muted">No products yet. Add your first one above.</td></tr>
+			<?php endif; ?>
+		</tbody>
+	</table>
+</div>
+<?php require "../includes/footer.php"; ?>

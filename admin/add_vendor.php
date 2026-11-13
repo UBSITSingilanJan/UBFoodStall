@@ -1,69 +1,69 @@
 <?php
+	require_once "../includes/helpers.php";
 	require_once "../dbconn.php";
 	require_once "../classes/vendor.php";
+	require_once "../classes/customer.php";
+
+	require_role("admin");
 
 	$conn = new Vendor($pdo);
+	$customer = new Customer($pdo);
+	$message = "";
 
-	if (isset($_POST['add_vendor'])) {
-		$firstname = htmlspecialchars($_POST['firstname']);
-		$lastname = htmlspecialchars($_POST['lastname']);
-		$contact = $_POST['contact'];
-		$email = $_POST['email'];
+	if(isset($_POST['add_vendor'])){
+		$firstname = trim($_POST['firstname']);
+		$lastname = trim($_POST['lastname']);
+		$contact = trim($_POST['contact']);
+		$email = trim($_POST['email']);
 		$password = $_POST['password'];
-		$location = $_POST['location'];
-		$stallname = $_POST['stallname'];
+		$location = trim($_POST['location']);
+		$stallname = trim($_POST['stallname']);
 
-		$conn -> insert_data($firstname, $lastname, $contact, $email, $password, "Vendor", $location, $stallname);
+		if(strlen($password) < 6){
+			$message = "Password must be at least 6 characters.";
+		}
+		elseif($conn -> email_exists($email) || $customer -> email_exists($email) || $email === "admin@gmail.com"){
+			$message = "That email is already registered.";
+		}
+		else{
+			$conn -> insert_data($firstname, $lastname, $contact, $email, $password, "Vendor", $location, $stallname);
 
-		header("Location: index.php");
-		exit();
+			header("Location: index.php?saved=1");
+			exit;
+		}
 	}
+
+	$base = "../";
+	$page_title = "Add Vendor";
+	$nav = ["Vendors" => "index.php"];
+	$show_logout = true;
+	require "../includes/header.php";
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title></title>
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@6.0.0-alpha.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-B/GM4XqrwHnWXNOWMbloTmrYXZg10cakYGmpfsR/bbzQ6JAJI4ihuyADKLnBgrCe" crossorigin="anonymous">
-</head>
-<body>
-	<h1>UB FOOD STALL REGISTER</h1>
-	<form method="post">
-		<table>
-			<tr>
-				<td><h3>Customer Information</h3></td>
-			</tr>
-			<tr>
-				<td><input type="text" name="firstname" placeholder="Firstname" required></td>
-			</tr>
-			<tr>
-				<td><input type="text" name="lastname" placeholder="Lastname" required></td>
-			</tr>
-			<tr>
-				<td><input type="tel" name="contact" placeholder="Contact Number" required></td>
-			</tr>
-			<tr>
-				<td><input type="email" name="email" placeholder="Email" required></td>
-			</tr>
-			<tr>
-				<td><input type="password" name="password" placeholder="Password" required></td>
-			</tr>
-			<tr>
-				<td><h3>Stall Information</h3></td>
-			</tr>
-			<tr>
-				<td><input type="text" name="location" placeholder="Location" required></td>
-			</tr>
-			<tr>
-				<td><input type="text" name="stallname" placeholder="Stall Name" required></td>
-			</tr>
-			<tr>
-				<td><a href="index.php">Cancel</a></td>
-				<td><button name="add_vendor">Add Vendor</button></td>
-			</tr>
-		</table>
-	</form>
-	<script type="module" src="https://cdn.jsdelivr.net/npm/bootstrap@6.0.0-alpha.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-1a/pXj49ZQ1aHEmrJ+gMw1otqoVsYwlEnlD8mIfY2TV03r20Y0CN7uqx1tQogjPL" crossorigin="anonymous"></script>
-</body>
-</html>
+<div class="row justify-content-center">
+	<div class="col-md-7">
+		<div class="card shadow-sm"><div class="card-body p-4">
+			<h1 class="h4 text-ub mb-3">Add Vendor</h1>
+			<?php alert($message); ?>
+			<form method="post">
+				<h2 class="h6 text-muted">Vendor information</h2>
+				<div class="row g-3 mb-4">
+					<div class="col-md-6"><input class="form-control" type="text" name="firstname" placeholder="First name" value="<?php echo e($_POST['firstname'] ?? ''); ?>" required></div>
+					<div class="col-md-6"><input class="form-control" type="text" name="lastname" placeholder="Last name" value="<?php echo e($_POST['lastname'] ?? ''); ?>" required></div>
+					<div class="col-md-6"><input class="form-control" type="tel" name="contact" placeholder="Contact number" value="<?php echo e($_POST['contact'] ?? ''); ?>" required></div>
+					<div class="col-md-6"><input class="form-control" type="email" name="email" placeholder="Email" value="<?php echo e($_POST['email'] ?? ''); ?>" required></div>
+					<div class="col-12"><input class="form-control" type="password" name="password" placeholder="Password (min. 6 characters)" minlength="6" required></div>
+				</div>
+				<h2 class="h6 text-muted">Stall information</h2>
+				<div class="row g-3 mb-4">
+					<div class="col-md-6"><input class="form-control" type="text" name="stallname" placeholder="Stall name" value="<?php echo e($_POST['stallname'] ?? ''); ?>" required></div>
+					<div class="col-md-6"><input class="form-control" type="text" name="location" placeholder="Location" value="<?php echo e($_POST['location'] ?? ''); ?>" required></div>
+				</div>
+				<div class="d-flex justify-content-between">
+					<a href="index.php">Cancel</a>
+					<button class="btn btn-ub" name="add_vendor">Add Vendor</button>
+				</div>
+			</form>
+		</div></div>
+	</div>
+</div>
+<?php require "../includes/footer.php"; ?>

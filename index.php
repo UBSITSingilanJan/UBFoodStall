@@ -1,40 +1,43 @@
 <?php
-	session_start();
-	require_once "dbconn.php";
+	require_once "includes/helpers.php";
 
+	// Already logged in? Go straight to your own dashboard.
 	if(isset($_SESSION["ROLE"])){
-		if($_SESSION["ROLE"] == "admin"){
-			header("Location: admin/index.php");
-		} else {
-			header("Location: customer/index.php");
-		}
+		header("Location: " . home_for_role($_SESSION["ROLE"]));
 		exit;
 	}
+
+	$base = "";
+	$page_title = "Login";
+
+	$message = "";
+	if(isset($_GET["error"])){
+		$message = "Invalid email or password.";
+	}
+	$success = isset($_GET["registered"]) ? "Account created! You can now log in." : "";
+
+	require "includes/header.php";
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title></title>
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@6.0.0-alpha.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-B/GM4XqrwHnWXNOWMbloTmrYXZg10cakYGmpfsR/bbzQ6JAJI4ihuyADKLnBgrCe" crossorigin="anonymous">
-</head>
-<body>
-	<h1>UB FOOD STALL LOGIN</h1>
-	<form method="post" action="login.php">
-		<table>
-			<tr>
-				<td><input type="email" name="email" placeholder="Email" required></td>
-			</tr>
-			<tr>
-				<td><input type="password" name="password" placeholder="Password" required></td>
-			</tr>
-			<tr>
-				<td><a href="register.php">Register</a></td>
-				<td><button name="login_btn">Login</button></td>
-			</tr>
-		</table>
-	</form>
-	<script type="module" src="https://cdn.jsdelivr.net/npm/bootstrap@6.0.0-alpha.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-1a/pXj49ZQ1aHEmrJ+gMw1otqoVsYwlEnlD8mIfY2TV03r20Y0CN7uqx1tQogjPL" crossorigin="anonymous"></script>
-</body>
-</html>
+<div class="row justify-content-center">
+	<div class="col-md-5">
+		<div class="card shadow-sm">
+			<div class="card-body p-4">
+				<h1 class="h4 text-ub text-center mb-4">UB FOOD STALL LOGIN</h1>
+				<?php alert($message); alert($success, "success"); ?>
+				<form method="post" action="login.php">
+					<div class="mb-3">
+						<label class="form-label" for="email">Email</label>
+						<input class="form-control" type="email" id="email" name="email" placeholder="Email" required>
+					</div>
+					<div class="mb-3">
+						<label class="form-label" for="password">Password</label>
+						<input class="form-control" type="password" id="password" name="password" placeholder="Password" required>
+					</div>
+					<button class="btn btn-ub w-100" name="login_btn">Login</button>
+				</form>
+				<p class="text-center mt-3 mb-0">No account yet? <a href="register.php">Register</a></p>
+			</div>
+		</div>
+	</div>
+</div>
+<?php require "includes/footer.php"; ?>

@@ -1,57 +1,50 @@
 <?php
+	require_once "../includes/helpers.php";
 	require_once "../dbconn.php";
 	require_once "../classes/vendor.php";
-	session_start();
 
-	if(!isset($_SESSION["ROLE"]) || $_SESSION["ROLE"] != "admin"){
-		session_destroy();
-		header("Location: ../index.php");
-		exit;
-	}
+	require_role("admin");
 
 	$conn = new Vendor($pdo);
 	$rows = $conn -> fetch_data();
-?>
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title></title>
-</head>
-<body>
-	<h1>Welcome tanga admin</h1>
-	<a href="logout.php">Logout</a> | 
-	<a href="add_vendor.php">Add Vendor</a>
 
-	<table border="1" cellpadding="8">
-		<tr>
-			<th>ID</th>
-			<th>First Name</th>
-			<th>Last Name</th>
-			<th>Contact</th>
-			<th>Email</th>
-			<th>Stall Name</th>
-			<th>Actions</th>
-		</tr>
-		<?php
-			foreach($rows as $row){
-		?>
+	$base = "../";
+	$page_title = "Admin";
+	$nav = ["Add Vendor" => "add_vendor.php"];
+	$show_logout = true;
+	require "../includes/header.php";
+
+	$notice = isset($_GET["deleted"]) ? "Vendor deleted." : (isset($_GET["saved"]) ? "Vendor saved." : "");
+?>
+<h1 class="h3 mb-3">Vendors</h1>
+<?php alert($notice, "success"); ?>
+<div class="table-responsive">
+	<table class="table table-striped table-hover bg-white align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>ID</th><th>First name</th><th>Last name</th><th>Contact</th><th>Email</th><th>Stall</th><th>Location</th><th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			<?php foreach($rows as $row): ?>
 				<tr>
-					<td><?php echo $row['Vendor_ID']; ?></td>
-					<td><?php echo $row['firstname']; ?></td>
-					<td><?php echo $row['lastname']; ?></td>
-					<td><?php echo $row['contact']; ?></td>
-					<td><?php echo $row['email']; ?></td>
-					<td><?php echo $row['stallname']; ?></td>
-					<td>
-						<a href="update.php?id=<?php echo $row['Vendor_ID']; ?>">Update | </a>
-						<a href="delete.php?id=<?php echo $row['Vendor_ID']; ?>">Delete</a>
+					<td><?php echo e($row['Vendor_ID']); ?></td>
+					<td><?php echo e($row['firstname']); ?></td>
+					<td><?php echo e($row['lastname']); ?></td>
+					<td><?php echo e($row['contact']); ?></td>
+					<td><?php echo e($row['email']); ?></td>
+					<td><?php echo e($row['stallname']); ?></td>
+					<td><?php echo e($row['location']); ?></td>
+					<td class="text-nowrap">
+						<a class="btn btn-sm btn-outline-secondary" href="update.php?id=<?php echo e($row['Vendor_ID']); ?>">Update</a>
+						<a class="btn btn-sm btn-outline-danger" href="delete.php?id=<?php echo e($row['Vendor_ID']); ?>">Delete</a>
 					</td>
 				</tr>
-		<?php
-			}
-		?>
+			<?php endforeach; ?>
+			<?php if(count($rows) == 0): ?>
+				<tr><td colspan="8" class="text-center text-muted">No vendors yet.</td></tr>
+			<?php endif; ?>
+		</tbody>
 	</table>
-</body>
-</html>
+</div>
+<?php require "../includes/footer.php"; ?>
