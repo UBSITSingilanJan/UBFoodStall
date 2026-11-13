@@ -1,136 +1,60 @@
 <?php
-session_start();
+	require_once __DIR__ . "/inc/bootstrap.php";
 
-class Database {
-    public function connect() {
-        return true;
-    }
-}
+	/* Search, filter and sort come from the query string: index.php?q=siomai&status=open&sort=rating */
+	$q = trim(get_str("q"));
+	$status = get_choice("status", ["all", "open", "closed"], "all");
+	$sort = get_choice("sort", ["number", "rating", "price", "name"], "number");
 
-class MenuAnalyzer {
-    private $menu;
-    private $budget;
+	$allStalls = $catalog -> getStalls();
+	$stalls = Catalog::filterStalls($allStalls, $q, $status, $sort);
 
-    public function __construct($menuData, $budget) {
-        $this->menu = $menuData;
-        $this->budget = $budget;
-    }
-
-    public function getAveragePrice() {
-        if (count($this->menu) == 0) return 0;
-        $total = 0;
-        foreach ($this->menu as $food) {
-            $total += $food['price'];
-        }
-        return $total / count($this->menu);
-    }
-
-    public function getCheapestItem() {
-        if (count($this->menu) == 0) return ["food" => "None", "price" => 0];
-        $cheapest = $this->menu[0];
-        foreach ($this->menu as $food) {
-            if ($food['price'] < $cheapest['price']) {
-                $cheapest = $food;
-            }
-        }
-        return $cheapest;
-    }
-
-    public function getMostExpensiveItem() {
-        if (count($this->menu) == 0) return ["food" => "None", "price" => 0];
-        $mostExpensive = $this->menu[0];
-        foreach ($this->menu as $food) {
-            if ($food['price'] > $mostExpensive['price']) {
-                $mostExpensive = $food;
-            }
-        }
-        return $mostExpensive;
-    }
-
-    public function getAffordableItems() {
-        $affordable = [];
-        foreach ($this->menu as $food) {
-            if ($food['price'] <= $this->budget) {
-                $affordable[] = $food;
-            }
-        }
-        return $affordable;
-    }
-}
-
-if (!isset($_SESSION['menu_data'])) {
-    $_SESSION['menu_data'] = [
-        ["food" => "Pork Siomai (4pcs)", "price" => 25.00],
-        ["food" => "Beef Siomai (4pcs)", "price" => 35.00]
-    ];
-}
-
-$userBudget = 50.00;
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $foodName = $_POST["food_name"] ?? "";
-    $foodPrice = $_POST["food_price"] ?? 0;
-    $userBudget = (float)($_POST["budget"] ?? 50.00);
-
-    if ($foodName != "" && $foodPrice > 0) {
-        $_SESSION['menu_data'][] = [
-            "food" => $foodName,
-            "price" => (float)$foodPrice
-        ];
-    }
-}
-
-$database = new Database();
-$conn = $database->connect();
-$analyzer = new MenuAnalyzer($_SESSION['menu_data'], $userBudget);
-$cheapest = $analyzer->getCheapestItem();
-$most_expensive = $analyzer->getMostExpensiveItem();
-$affordable = $analyzer->getAffordableItems();
-
-$customerName = isset($_SESSION["FNAME"]) ? $_SESSION["FNAME"] : "Customer";
+	$pageTitle = "Stalls";
+	require __DIR__ . "/inc/header.php";
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@6.0.0-alpha.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-B/GM4XqrwHnWXNOWMbloTmrYXZg10cakYGmpfsR/bbzQ6JAJI4ihuyADKLnBgrCe" crossorigin="anonymous">
-</head>
-<body>
-    <h1>Welcome <?php echo htmlspecialchars($customerName); ?></h1>
-    <a href="logout.php">Logout</a>
 
-    <hr>
+<h1>Stalls</h1>
+<p>Pick a stall to see its menu and what is in stock.</p>
 
-    <h2>Menu Analysis Dashboard</h2>
-    <form method="POST">
-        <label>Food Name:</label>
-        <input type="text" name="food_name" required>
-        <label>Price:</label>
-        <input type="number" step="0.01" name="food_price" required>
-        <br><br>
-        <label>My Budget (₱):</label>
-        <input type="number" step="0.01" name="budget" value="<?php echo $userBudget; ?>" required>
-        <button type="submit">Update Menu & Analyze</button>
-    </form>
-    <br>
+<form method="get" action="index.php">
+	<label>Search <input type="search" name="q" value="<?= e($q) ?>" placeholder="Name, number, or location"></label>
+	<label>Status
+		<select name="status">
+			<option value="all"<?= sel($status, "all") ?>>All</option>
+			<option value="open"<?= sel($status, "open") ?>>Open</option>
+			<option value="closed"<?= sel($status, "closed") ?>>Closed</option>
+		</select>
+	</label>
+	<label>Sort
+		<select name="sort">
+			<option value="number"<?= sel($sort, "number") ?>>Stall number</option>
+			<option value="rating"<?= sel($sort, "rating") ?>>Top rated</option>
+			<option value="price"<?= sel($sort, "price") ?>>Lowest price</option>
+			<option value="name"<?= sel($sort, "name") ?>>Name</option>
+		</select>
+	</label>
+	<button type="submit">Apply</button>
+	<a href="index.php">Reset</a>
+</form>
 
-    <h3>Aggregations</h3>
-    <p>Average Price of Menu: <?php echo number_format($analyzer->getAveragePrice(), 2); ?></p>
-    <p>Cheapest Item (MIN): <?php echo $cheapest['food']; ?> (<?php echo number_format($cheapest['price'], 2); ?>)</p>
-    <p>Most Expensive Item (MAX): <?php echo $most_expensive['food']; ?> (<?php echo number_format($most_expensive['price'], 2); ?>)</p>
-    
-    <h3>Report: Affordable Items (Based on Budget)</h3>
-    <?php if (count($affordable) > 0): ?>
-        <ul>
-            <?php foreach ($affordable as $item): ?>
-                <li><?php echo $item['food']; ?> - ₱<?php echo number_format($item['price'], 2); ?></li>
-            <?php endforeach; ?>
-        </ul>
-    <?php else: ?>
-        <p>No items fit your budget.</p>
-    <?php endif; ?>
-<script type="module" src="https://cdn.jsdelivr.net/npm/bootstrap@6.0.0-alpha.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-1a/pXj49ZQ1aHEmrJ+gMw1otqoVsYwlEnlD8mIfY2TV03r20Y0CN7uqx1tQogjPL" crossorigin="anonymous"></script>
-</body>
-</html>
+<p>Showing <?= count($stalls) ?> of <?= count($allStalls) ?> stalls</p>
+
+<?php if(count($allStalls) === 0): ?>
+	<p>No stalls yet. Stalls show up here once a vendor is added.</p>
+<?php elseif(count($stalls) === 0): ?>
+	<p>No stalls match. Try a different word or reset the filter.</p>
+<?php else: ?>
+	<?php foreach($stalls as $s):
+		$unavailable = (int) $s["product_count"] - (int) $s["available_count"] - (int) $s["low_count"]; ?>
+		<article>
+			<h2><a href="stall.php?id=<?= (int) $s["Stall_ID"] ?>">Stall <?= (int) $s["Stall_ID"] ?>: <?= e($s["stallname"]) ?></a></h2>
+			<p>Location: <?= e($s["location"]) ?></p>
+			<p>Status: <?= e(stall_status_text($s["status"])) ?></p>
+			<p>Rating: <?= e(rating_text($s["avg_rating"], $s["review_count"])) ?></p>
+			<p>Lowest price: <?= $s["min_price"] !== null ? e(peso($s["min_price"])) : "Nothing in stock" ?></p>
+			<p>Products: <?= (int) $s["available_count"] ?> available, <?= (int) $s["low_count"] ?> low stock, <?= $unavailable ?> unavailable</p>
+		</article>
+	<?php endforeach; ?>
+<?php endif; ?>
+
+<?php require __DIR__ . "/inc/footer.php"; ?>
