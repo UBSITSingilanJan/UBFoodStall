@@ -1,141 +1,63 @@
 <?php
-session_start();
+	session_start();
 
-class Database {
-    public function connect() {
-        return true;
-    }
-}
+	// Only logged-in vendors can see this page.
+	if (!isset($_SESSION["Vendor_ID"])) {
+		header("Location: ../index.php");
+		exit;
+	}
 
-class InventoryAnalyzer {
-    private $inventory;
+	require_once "../dbconn.php";
 
-    public function __construct($inventoryData) {
-        $this->inventory = $inventoryData;
-    }
+	// Read-only: the vendor's name and stall (stall name/location are managed by admin).
+	$info = null;
+	try {
+		$prep = $pdo->prepare("SELECT vendor.firstname, vendor.lastname, vendor.email, vendor.contact, food_stall.Stall_ID, food_stall.stallname, food_stall.location, food_stall.status
+			FROM vendor LEFT JOIN food_stall ON vendor.Vendor_ID = food_stall.Vendor_ID WHERE vendor.Vendor_ID = :id");
+		$prep->execute([":id" => $_SESSION["Vendor_ID"]]);
+		$info = $prep->fetch();
+	} catch (PDOException $e) {
+		$info = null;
+	}
 
-    public function getAveragePrice() {
-        if (count($this->inventory) == 0) return 0;
-        $total = 0;
-        foreach ($this->inventory as $item) {
-            $total += $item['price'];
-        }
-        return $total / count($this->inventory);
-    }
-
-    public function getMinStock() {
-        if (count($this->inventory) == 0) return 0;
-        $stocks = array_column($this->inventory, 'stock');
-        return min($stocks);
-    }
-
-    public function getMaxStock() {
-        if (count($this->inventory) == 0) return 0;
-        $stocks = array_column($this->inventory, 'stock');
-        return max($stocks);
-    }
-
-    public function getLowStockAlerts($threshold = 10) {
-        $alerts = [];
-        foreach ($this->inventory as $item) {
-            if ($item['stock'] < $threshold) {
-                $alerts[] = "ALERT: " . $item['item'] . " is running low! Only " . $item['stock'] . " left.";
-            }
-        }
-        return $alerts;
-    }
-}
-
-if (!isset($_SESSION['inventory_data'])) {
-    $_SESSION['inventory_data'] = [
-        ["item" => "Pork Siomai", "price" => 25.00, "stock" => 50]
-    ];
-}
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $itemName = $_POST["item_name"] ?? "";
-    $itemPrice = $_POST["item_price"] ?? 0;
-    $itemStock = $_POST["item_stock"] ?? 0;
-
-    if ($itemName != "" && $itemPrice > 0) {
-        $_SESSION['inventory_data'][] = [
-            "item" => $itemName,
-            "price" => (float)$itemPrice,
-            "stock" => (int)$itemStock
-        ];
-    }
-}
-
-$database = new Database();
-$conn = $database->connect();
-$analyzer = new InventoryAnalyzer($_SESSION['inventory_data']);
-$sales_report = ["Today" => 1500, "This Week" => 8500];
-
-$vendorName = isset($_SESSION["FNAME"]) ? $_SESSION["FNAME"] : "Vendor";
+	$vendor = [
+		"id"        => (int) $_SESSION["Vendor_ID"],
+		"first"     => $info["firstname"] ?? ($_SESSION["FNAME"] ?? "Vendor"),
+		"last"      => $info["lastname"] ?? ($_SESSION["LNAME"] ?? ""),
+		"email"     => $info["email"] ?? "",
+		"contact"   => $info["contact"] ?? "",
+		"stall"     => ($info && $info["Stall_ID"]) ? [
+			"Stall_ID"  => (int) $info["Stall_ID"],
+			"stallname" => $info["stallname"],
+			"location"  => $info["location"],
+		] : null,
+	];
+	$h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, "UTF-8");
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title></title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>UB FoodStall - Vendor</title>
 </head>
 <body>
-    <h1>Welcome <?php echo htmlspecialchars($vendorName); ?></h1>
-    <a href="logout.php">Logout</a>
-    
-    <hr>
+	<h1>UB FOOD STALL - VENDOR</h1>
+	<p>Welcome <?= $h($vendor["first"] . " " . $vendor["last"]) ?> | <a href="logout.php">Logout</a></p>
 
-    <h2>Data Analysis Dashboard</h2>
-    <form method="POST">
-        <label>Item Name:</label>
-        <input type="text" name="item_name" required>
-        <label>Price:</label>
-        <input type="number" step="0.01" name="item_price" required>
-        <label>Stock:</label>
-        <input type="number" name="item_stock" required>
-        <button type="submit">Add Data</button>
-    </form>
-    <br>
+	<nav>
+		<a href="#/dashboard">Dashboard</a> |
+		<a href="#/stall">My Stall</a> |
+		<a href="#/products">Products</a> |
+		<a href="#/reviews">Reviews</a>
+	</nav>
+	<hr>
 
-    <h3>Aggregations</h3>
-    <p>Average Item Price: <?php echo number_format($analyzer->getAveragePrice(), 2); ?></p>
-    <p>Minimum Stock Level: <?php echo $analyzer->getMinStock(); ?></p>
-    <p>Maximum Stock Level: <?php echo $analyzer->getMaxStock(); ?></p>
+	<p id="msg" role="status"></p>
+	<div id="app"></div>
 
-    <h3>Reports</h3>
-    <ul>
-        <?php foreach ($sales_report as $period => $amount): ?>
-            <li><?php echo $period; ?>: <?php echo number_format($amount, 2); ?></li>
-        <?php endforeach; ?>
-    </ul>
-
-    <h3>Alerts</h3>
-    <?php
-    $alerts = $analyzer->getLowStockAlerts();
-    if (count($alerts) > 0) {
-        foreach ($alerts as $alert) {
-            echo "<p>" . $alert . "</p>";
-        }
-    } else {
-        echo "<p>All items are sufficiently stocked.</p>";
-    }
-    ?>
-
-    <h3>Current Inventory Data</h3>
-    <table border="1">
-        <tr>
-            <th>Item</th>
-            <th>Price</th>
-            <th>Stock</th>
-        </tr>
-        <?php foreach ($_SESSION['inventory_data'] as $item): ?>
-        <tr>
-            <td><?php echo $item['item']; ?></td>
-            <td><?php echo $item['price']; ?></td>
-            <td><?php echo $item['stock']; ?></td>
-        </tr>
-        <?php endforeach; ?>
-    </table>
+	<script>window.UBFS_VENDOR = <?= json_encode($vendor, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+	<script src="../assets/js/store.js"></script>
+	<script src="../assets/js/vendor.js"></script>
 </body>
 </html>
