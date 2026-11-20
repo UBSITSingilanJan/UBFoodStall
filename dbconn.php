@@ -1,4 +1,5 @@
 <?php
+	// Database settings (XAMPP). Change the port to 3306 if your MySQL uses the default port.
 	$host = "localhost:3308";
 	$user = "root";
 	$pass = "";
@@ -16,6 +17,6 @@
 		$pdo = new PDO($dsn, $user, $pass, $attributes);
 	}
 	catch(PDOException $e){
-		die("Connection Failed" . $e -> getMessage());
+		die("Connection failed: " . $e -> getMessage());
 	}
 ?>
